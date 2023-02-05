@@ -1,0 +1,80 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/02/ALU.hdl
+
+/**
+ * The ALU (Arithmetic Logic Unit).
+ * Computes one of the following functions:
+ * x+y, x-y, y-x, 0, 1, -1, x, y, -x, -y, !x, !y,
+ * x+1, y+1, x-1, y-1, x&y, x|y on two 16-bit inputs, 
+ * according to 6 input bits denoted zx,nx,zy,ny,f,no.
+ * In addition, the ALU computes two 1-bit outputs:
+ * if the ALU output == 0, zr is set to 1; otherwise zr is set to 0;
+ * if the ALU output < 0, ng is set to 1; otherwise ng is set to 0.
+ */
+
+// Implementation: the ALU logic manipulates the x and y inputs
+// and operates on the resulting values, as follows:
+// if (zx == 1) set x = 0        // 16-bit constant
+// if (nx == 1) set x = !x       // bitwise not
+// if (zy == 1) set y = 0        // 16-bit constant
+// if (ny == 1) set y = !y       // bitwise not
+// if (f == 1)  set out = x + y  // integer 2's complement addition
+// if (f == 0)  set out = x & y  // bitwise and
+// if (no == 1) set out = !out   // bitwise not
+// if (out == 0) set zr = 1
+// if (out < 0) set ng = 1
+
+CHIP ALU {
+    IN  
+        x[16], y[16],  // 16-bit inputs        
+        zx, // zero the x input?
+        nx, // negate the x input?
+        zy, // zero the y input?
+        ny, // negate the y input?
+        f,  // compute out = x + y (if 1) or x & y (if 0)
+        no; // negate the out output?
+
+    OUT 
+        out[16], // 16-bit output
+        zr, // 1 if (out == 0), 0 otherwise
+        ng; // 1 if (out < 0),  0 otherwise
+
+    PARTS:
+   // Put you code here:
+   Not16(in=x, out=notx); // not x
+   Not16(in=y, out=noty); // not y
+
+   And16(a=x, b=notx, out=zerox); // zero x
+   And16(a=y, b=noty, out=zeroy); // zero y
+
+   Not16(in=zerox, out=notzerox); // if zx and nx are 1
+   Not16(in=zeroy, out=notzeroy); // if zy and ny are 1
+
+   Mux4Way16(a=x, b=zerox, c=notx, d=notzerox, sel[0]=zx, sel[1]=nx, out=znx); // chose x and y combo
+   Mux4Way16(a=y, b=zeroy, c=noty, d=notzeroy, sel[0]=zy, sel[1]=ny, out=zny); // chose x and y combo
+
+   And16(a=znx, b=zny, out=andxy); // x & y
+   Add16(a=znx, b=zny, out=sumxy); // x + y
+   Mux16(a=andxy, b=sumxy, sel=f, out=out1);  // chose function
+   Not16(in=out1, out=notout); // not the out output
+   Mux16(a=out1, b=notout, sel=no, out=o); // chose output // out[15] = ng
+
+   Or16Way(in=o, out=oor); // check if every bit in o is 0
+   Not(in=oor, out=zr); // if oor is 0, zr is 1
+
+   And16(a[0..15]=true, b=o, out[15]=ng, out[0..14]=dntcare); // check if leftmost bit of o is 1
+
+   Or16(a=o, b[0..15]=false, out=out); // 0 or 0 = 0, 1 or 0 = 1
+
+
+
+
+
+
+
+
+
+
+}
