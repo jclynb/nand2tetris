@@ -33,11 +33,65 @@ CHIP CPU {
                          // program (reset==1) or continue executing
                          // the current program (reset==0).
 
-    OUT outM[16],        // M value output
+    OUT outM[16],        // M value output *
         writeM,          // Write to M? 
-        addressM[15],    // Address in data memory (of M)
-        pc[15];          // address of next instruction
+        addressM[15],    // Address in data memory (of M) *
+        pc[15];          // address of next instruction *
 
     PARTS:
-    // Put your code here:
+
+    // A register
+    Not(in=instruction[5], out=notd5);
+    Mux16(a=instruction, b=ALUoutput, sel=instruction[15], out=firstMuxOutput); // ALU output + instruction are the inputs
+    Nand(a=instruction[15], b=notd5, out=Aload);
+    ARegister(in=firstMuxOutput, load=Aload, out=ARegOut, out[0..14]=addressM); // output of Mux16 is the input
+
+    // D register
+    Mux16(a=ARegOut, b=inM, sel=instruction[12], out=secondMuxOutput);
+    And(a=instruction[15], b=instruction[4], out=Dload);
+    DRegister(in=ALUoutput, load=Dload, out=DRegOut);
+
+    // Write to M?
+    And(a=instruction[15], b=instruction[3], out=writeM);
+
+    // ALU
+    ALU(x=DRegOut, y=secondMuxOutput, zx=instruction[11], nx=instruction[10], zy=instruction[9], ny=instruction[8], f=instruction[7], no=instruction[6], out=outM, out=ALUoutput, zr=zero, ng=neg);
+
+    // Jump logic
+    Not(in=zero, out=notzr);
+    Not(in=neg, out=pos);
+    Not(in=instruction[1], out=notj1);
+    Or(a=zero, b=neg, out=zorn);
+    Or(a=zero, b=pos, out=zorp);
+    And(a=pos, b=notzr, out=posnotzr);
+    And(a=neg, b=notzr, out=negnotzr);
+    And(a=instruction[0], b=instruction[1], out=j0j1);
+    And(a=instruction[1], b=instruction[2], out=j1j2);
+    And(a=instruction[0], b=instruction[2], out=j0j2);
+
+    // JGT alu > 0
+    And(a=instruction[0], b=posnotzr, out=jgt);
+    // JEQ alu = 0
+    And(a=instruction[1], b=zero, out=jeq);
+    // JGE alu >= 0
+    And(a=j0j1, b=zorp, out=jge);
+    // JLT alu < 0
+    And(a=instruction[2], b=negnotzr, out=jlt);
+    // JNE alu != 0
+    And(a=j0j2, b=notzr, out=jne);
+    // JLE alu <= 0
+    And(a=j1j2, b=zorn, out=jle);
+
+    Or(a=jgt, b=jeq, out=o1);
+    Or(a=jeq, b=o1, out=o2);
+    Or(a=jge, b=o2, out=o3);
+    Or(a=jlt, b=o3, out=o4);
+    Or(a=jne, b=o4, out=o5);
+    Or(a=jle, b=o5, out=j);
+
+    And(a=instruction[15], b=j, out=jump);
+    Not(in=jump, out=increment);
+
+    // PC
+    PC(in=ARegOut, load=jump, inc=increment, reset=reset, out[0..14]=pc);
 }
